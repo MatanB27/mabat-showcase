@@ -72,3 +72,9 @@ header :focus-visible,.hero :focus-visible {outline-color:white}
   .controls span {font-size:14px}
 }
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.walk-stage {position:relative}
+.walk-pad {position:absolute;bottom:12px;left:12px;display:grid;grid-template-columns:repeat(3,44px);gap:3px}
+.walk-pad button {height:44px;border:1px solid #ffffff80;border-radius:4px;background:#242220d9;color:white;font:600 20px Arial;touch-action:none;user-select:none}
+.walk-pad button:first-child {grid-column:2}
+.walk-pad button:nth-child(2) {grid-column:1}
+.walk-pad button:active {background:var(--brand)}

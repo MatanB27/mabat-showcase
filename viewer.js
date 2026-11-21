@@ -1,59 +1,104 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/loaders/GLTFLoader.js';
+import { walkHeight } from './navigation.js';
 
 export async function start(url, headers) {
   const response = await fetch(url, { headers });
   if (!response.ok) throw new Error('Model unavailable');
-  const model = await new GLTFLoader().parseAsync(await response.arrayBuffer(), '');
-  const view = document.querySelector('#view');
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xe9e7df);
-  scene.add(model.scene, new THREE.HemisphereLight(0xfffaf2, 0xfff0da, 2.1));
-  const light = new THREE.DirectionalLight(0xfff8ea, 1.2);
-  light.position.set(4,8,3);
-  scene.add(light);
-  const renderer = new THREE.WebGLRenderer({ antialias:true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
-  view.replaceChildren(renderer.domElement);
-  const camera = new THREE.PerspectiveCamera(78,1,0.025,100);
-  camera.rotation.order = 'YXZ';
-  const rooms = [[0.6,1.55,0.45,-2.1],[-0.35,1.52,-0.25,1.05],[-0.5,1.52,0.7,-3.9],[0.65,1.52,-1.35,3.1]];
-  function draw() {
-    if (!view.clientWidth || !view.clientHeight) return;
-    renderer.setSize(view.clientWidth,view.clientHeight,false);
-    camera.aspect = view.clientWidth / view.clientHeight;
+  const {scene:model} = await new GLTFLoader().parseAsync(await response.arrayBuffer(), '');
+  const nav = JSON.parse(model.getObjectByName('MabatWalk').userData.walkthrough);
+  const view = document.querySelector('#view'), dialog=view.closest('dialog');
+  const canvas=document.createElement('canvas');
+  canvas.tabIndex=0;
+  canvas.setAttribute('aria-label','הליכה באמצעות WASD או חצים. Q ו־E מסובבים את המבט.');
+  const camera=new THREE.PerspectiveCamera(69,1,.035,200);
+  camera.rotation.order='YXZ';
+  let render;
+  const context=canvas.getContext('webgl2',{antialias:true});
+  if(context){
+    const renderer=new THREE.WebGLRenderer({canvas,context,antialias:true});
+    renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure=1.15;
+    const scene=new THREE.Scene();
+    scene.background=new THREE.Color(0xe6e1d8);
+    const sun=new THREE.DirectionalLight(0xfff3df,.7);
+    sun.position.set(6,11,4);
+    scene.add(model,sun,new THREE.HemisphereLight(0xfff4df,0xafafa9,1.35));
+    for(const [x,y,w,d,base] of nav.areas){
+      const light=new THREE.PointLight(0xfff2da,6,6);
+      light.position.set(x+w/2,base+2.25,-y-d/2);
+      scene.add(light);
+    }
+    render=()=>{renderer.setSize(view.clientWidth,view.clientHeight,false);renderer.render(scene,camera)};
+  }else{
+    const {software}=await import('./software.js');
+    const paint=software(canvas,model);
+    render=()=>paint(camera);
+  }
+  view.replaceChildren(canvas);
+  function draw(){
+    if(!dialog.open || !view.clientHeight)return;
+    camera.aspect=view.clientWidth/view.clientHeight;
     camera.updateProjectionMatrix();
-    renderer.render(scene,camera);
+    render();
   }
-  const select = document.querySelector('#room');
-  function enterRoom() {
-    const [x,y,z,yaw] = rooms[select.selectedIndex];
-    camera.position.set(x,y,z);
-    camera.rotation.set(-0.08,yaw,0,'YXZ');
+  const room=document.querySelector('#room');
+  room.replaceChildren(...nav.viewpoints.map(({name},i)=>new Option(name,String(i))));
+  function enter([x,y,angle,height]){
+    camera.position.set(x,height+1.62,-y);
+    camera.rotation.set(0,angle,0,'YXZ');
+    canvas.focus({preventScroll:true});draw();
+  }
+  room.onchange=()=>enter(nav.viewpoints[room.selectedIndex].pose);
+  const held=new Set();
+  function move(dx,dy){
+    const p=camera.position;
+    let height=walkHeight(p.x+dx,-p.z,p.y-1.62,nav);
+    if(height!==null){p.x+=dx;p.y=height+1.62;}
+    height=walkHeight(p.x,-p.z+dy,p.y-1.62,nav);
+    if(height!==null){p.z-=dy;p.y=height+1.62;}
+  }
+  let frame=0,last=0;
+  function step(dt){
+    const down=(a,b)=>Number(held.has(a)||held.has(b));
+    const forward=down('KeyW','ArrowUp')-down('KeyS','ArrowDown');
+    const right=down('KeyD','ArrowRight')-down('KeyA','ArrowLeft');
+    camera.rotation.y+=(down('KeyQ')-down('KeyE'))*dt*1.7;
+    const angle=camera.rotation.y,speed=dt*1.65/Math.max(1,Math.hypot(forward,right));
+    move((right*Math.cos(angle)-forward*Math.sin(angle))*speed,(forward*Math.cos(angle)+right*Math.sin(angle))*speed);
     draw();
   }
-  select.onchange = enterRoom;
-  const canvas = renderer.domElement;
-  canvas.tabIndex = 0;
-  canvas.setAttribute('aria-label','מבט בתוך הדירה. גררו או השתמשו במקשי החצים כדי להסתכל סביב.');
-  function turn(x,y) {
-    camera.rotation.y += x;
-    camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x+y,-1.35,1.35);
-    draw();
+  function tick(now){
+    frame=0;if(!dialog.open||!held.size)return;
+    step(Math.min(.05,(now-last)/1000));last=now;
+    frame=requestAnimationFrame(tick);
   }
-  let last;
-  canvas.onpointerdown = e => { canvas.setPointerCapture(e.pointerId); last=[e.clientX,e.clientY]; };
-  canvas.onpointermove = e => {
-    if (!last || !canvas.hasPointerCapture(e.pointerId)) return;
-    turn((e.clientX-last[0])*.006,(e.clientY-last[1])*.006);
-    last=[e.clientX,e.clientY];
+  function begin(code){
+    if(held.has(code))return;
+    held.add(code);
+    if(!frame){last=performance.now();step(.018);frame=requestAnimationFrame(tick);}
+  }
+  function stop(){held.clear();cancelAnimationFrame(frame);frame=0;}
+  dialog.addEventListener('close',stop);window.addEventListener('blur',stop);
+  const keys=new Set(['KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
+  dialog.addEventListener('keydown',e=>{if(keys.has(e.code) && e.target!==room){e.preventDefault();begin(e.code);}});
+  window.addEventListener('keyup',e=>held.delete(e.code));
+  for(const button of dialog.querySelectorAll('[data-code]')){
+    button.onpointerdown=e=>{button.setPointerCapture(e.pointerId);begin(button.dataset.code);};
+    button.onlostpointercapture=()=>held.delete(button.dataset.code);
+    button.onclick=e=>{if(!e.detail){held.add(button.dataset.code);step(.09);held.delete(button.dataset.code);}};
+  }
+  let lastPoint;
+  canvas.onpointerdown=e=>{canvas.setPointerCapture(e.pointerId);lastPoint=[e.clientX,e.clientY];};
+  canvas.onpointermove=e=>{
+    if(!lastPoint||!canvas.hasPointerCapture(e.pointerId))return;
+    camera.rotation.y+=(e.clientX-lastPoint[0])*.005;
+    camera.rotation.x=THREE.MathUtils.clamp(camera.rotation.x+(e.clientY-lastPoint[1])*.005,-1.35,1.35);
+    lastPoint=[e.clientX,e.clientY];draw();
   };
-  canvas.onlostpointercapture = () => { last=null; };
-  canvas.onkeydown = e => {
-    const delta={ArrowLeft:[.12,0],ArrowRight:[-.12,0],ArrowUp:[0,.12],ArrowDown:[0,-.12]}[e.key];
-    if (delta) { e.preventDefault(); turn(...delta); }
-  };
+  canvas.onlostpointercapture=()=>{lastPoint=null;};
   new ResizeObserver(draw).observe(view);
-  enterRoom();
-  return {draw};
+  enter(nav.start);
+  return {open(){canvas.focus({preventScroll:true});draw();}};
 }

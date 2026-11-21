@@ -24,23 +24,20 @@ form.addEventListener('submit', async (event) => {
 });
 const dialog = document.querySelector('dialog');
 const tourStatus = document.querySelector('#tourStatus');
-let viewer;
+let loading;
 document.querySelector('#openTour').onclick = async () => {
   dialog.showModal();
-  if (viewer) { viewer.draw(); return; }
   tourStatus.textContent = 'טוענים את הדירה…';
   try {
-    const probe = document.createElement('canvas').getContext('webgl2');
-    if (!probe) throw new Error('Use panorama');
-    probe.getExtension('WEBGL_lose_context')?.loseContext();
-    const { start } = await import('./viewer.js');
+    const { start } = await import('./viewer.js?v=walk1');
     const url = api + '/storage/v1/object/authenticated/property-scans/a4062f5b-1dd8-441c-beaa-f6e89fa77adb/26503d99-24d5-4cd1-bc76-a6a8cd4b50b3/b6b5dadb-7410-4122-b861-1fea831d0469/ddb8919b-54b5-4e71-af94-94a0d0d28c11/walkthrough.glb';
-    viewer = await start(url, headers);
+    loading ??= start(url, headers);
+    const viewer = await loading;
     tourStatus.textContent = '';
+    if (dialog.open) viewer.open();
   } catch {
-    const { panorama } = await import('./panorama.js');
-    viewer = panorama();
-    tourStatus.textContent = '';
+    loading = undefined;
+    tourStatus.textContent = 'טעינת הסיור נכשלה. סגרו ופתחו שוב כדי לנסות מחדש.';
   }
 };
 document.querySelector('#closeTour').onclick = () => dialog.close();
