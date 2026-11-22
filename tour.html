@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#c4510a" />
+    <title>סיור בדירה לדוגמה | מבט</title>
+    <meta name="description" content="טיילו בין החדרים בדירה לדוגמה של מבט." />
+    <link rel="stylesheet" href="site.css?v=tour2" />
+    <link rel="icon" href="favicon.svg" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&amp;family=Rubik:wght@500;600;700&amp;display=swap"
+    />
+  </head>
+  <body class="tour-page">
+    <main aria-labelledby="tourTitle">
+      <div class="bar">
+        <h1 id="tourTitle">סיור בדירה לדוגמה</h1>
+        <a id="closeTour" href="./">חזרה</a>
+      </div>
+      <div class="walk-stage">
+        <div id="view"></div>
+        <div class="walk-pad" role="group" aria-label="הליכה בדירה" dir="ltr">
+          <button data-code="KeyW" aria-label="קדימה">↑</button
+          ><button data-code="KeyA" aria-label="שמאלה">←</button
+          ><button data-code="KeyS" aria-label="אחורה">↓</button
+          ><button data-code="KeyD" aria-label="ימינה">→</button>
+        </div>
+      </div>
+      <div class="controls">
+        <label for="room">מעבר לחדר</label
+        ><select id="room"></select
+        ><span>הליכה עם החצים או WASD. גררו כדי להביט סביב.</span>
+      </div>
+      <p id="tourStatus" role="status"></p>
+      <button type="button" id="retry" hidden>טעינה מחדש</button>
+    </main>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+        }
+      }
+    </script>
+    <script type="module" src="tour.js"></script>
+  </body>
+</html>

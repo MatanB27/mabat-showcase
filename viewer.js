@@ -7,7 +7,7 @@ export async function start(url, headers) {
   if (!response.ok) throw new Error('Model unavailable');
   const {scene:model} = await new GLTFLoader().parseAsync(await response.arrayBuffer(), '');
   const nav = JSON.parse(model.getObjectByName('MabatWalk').userData.walkthrough);
-  const view = document.querySelector('#view'), dialog=view.closest('dialog');
+  const view = document.querySelector('#view'), tour=view.closest('main');
   const canvas=document.createElement('canvas');
   canvas.tabIndex=0;
   canvas.setAttribute('aria-label','הליכה באמצעות WASD או חצים. Q ו־E מסובבים את המבט.');
@@ -38,7 +38,7 @@ export async function start(url, headers) {
   }
   view.replaceChildren(canvas);
   function draw(){
-    if(!dialog.open || !view.clientHeight)return;
+    if(!view.clientHeight)return;
     camera.aspect=view.clientWidth/view.clientHeight;
     camera.updateProjectionMatrix();
     render();
@@ -70,7 +70,7 @@ export async function start(url, headers) {
     draw();
   }
   function tick(now){
-    frame=0;if(!dialog.open||!held.size)return;
+    frame=0;if(!held.size)return;
     step(Math.min(.05,(now-last)/1000));last=now;
     frame=requestAnimationFrame(tick);
   }
@@ -80,11 +80,11 @@ export async function start(url, headers) {
     if(!frame){last=performance.now();step(.018);frame=requestAnimationFrame(tick);}
   }
   function stop(){held.clear();cancelAnimationFrame(frame);frame=0;}
-  dialog.addEventListener('close',stop);window.addEventListener('blur',stop);
+  window.addEventListener('pagehide',stop);window.addEventListener('blur',stop);
   const keys=new Set(['KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
-  dialog.addEventListener('keydown',e=>{if(keys.has(e.code) && e.target!==room){e.preventDefault();begin(e.code);}});
+  tour.addEventListener('keydown',e=>{if(keys.has(e.code) && e.target!==room){e.preventDefault();begin(e.code);}});
   window.addEventListener('keyup',e=>held.delete(e.code));
-  for(const button of dialog.querySelectorAll('[data-code]')){
+  for(const button of tour.querySelectorAll('[data-code]')){
     button.onpointerdown=e=>{button.setPointerCapture(e.pointerId);begin(button.dataset.code);};
     button.onlostpointercapture=()=>held.delete(button.dataset.code);
     button.onclick=e=>{if(!e.detail){held.add(button.dataset.code);step(.09);held.delete(button.dataset.code);}};
@@ -100,5 +100,5 @@ export async function start(url, headers) {
   canvas.onlostpointercapture=()=>{lastPoint=null;};
   new ResizeObserver(draw).observe(view);
   enter(nav.start);
-  return {open(){canvas.focus({preventScroll:true});draw();}};
+
 }
